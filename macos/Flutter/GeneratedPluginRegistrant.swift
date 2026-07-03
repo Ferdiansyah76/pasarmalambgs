@@ -5,8 +5,10 @@
 import FlutterMacOS
 import Foundation
 
+import app_links
 import local_auth_darwin
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  AppLinksMacosPlugin.register(with: registry.registrar(forPlugin: "AppLinksMacosPlugin"))
   LocalAuthPlugin.register(with: registry.registrar(forPlugin: "LocalAuthPlugin"))
 }
