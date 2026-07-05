@@ -164,13 +164,17 @@ class AuthProvider extends ChangeNotifier {
 
   // ─── Kirim Firebase Token ke Backend ────────────────────
   Future<bool> _verifyTokenToBackend() async {
+  int retryCount = 0;
+  const maxRetry = 3;
+
+  while (retryCount < maxRetry) {
     try {
       debugPrint('[FIREBASE] Mengambil ID Token dari Firebase...');
       final firebaseToken = await _firebaseUser?.getIdToken();
       if (firebaseToken == null) throw Exception('Token Firebase null');
-      debugPrint('[FIREBASE] ID Token diperoleh (${firebaseToken.length} chars)');
 
-      // DioClient interceptor akan log request/response ke backend
+      debugPrint('[AUTH] Kirim token ke backend (coba ke-${retryCount + 1})');
+
       final response = await DioClient.instance.post(
         ApiConstants.verifyToken,
         data: {'firebase_token': firebaseToken},
@@ -181,21 +185,29 @@ class AuthProvider extends ChangeNotifier {
       _backendToken = backendToken;
 
       await SecureStorageService.saveToken(backendToken);
-      debugPrint('[AUTH] Backend JWT tersimpan di SecureStorage');
+      debugPrint('[AUTH] Backend JWT tersimpan');
 
       _status = AuthStatus.authenticated;
       notifyListeners();
 
-      // Register FCM token to backend after successful auth
       NotificationService.updateFcmToken();
 
-      return true;
+      return true; // ✅ sukses langsung keluar
     } catch (e) {
-      debugPrint('[AUTH] _verifyTokenToBackend gagal: $e');
-      _setError('Gagal verifikasi ke server: $e');
-      return false;
+      retryCount++;
+      debugPrint('[AUTH] Retry ke-$retryCount gagal: $e');
+
+      if (retryCount >= maxRetry) {
+        _setError('Gagal verifikasi ke server setelah $maxRetry percobaan');
+        return false;
+      }
+
+      await Future.delayed(const Duration(seconds: 2));
     }
   }
+
+  return false;
+}
 
   // ─── Login ulang otomatis setelah email terkonfirmasi ───
   // Dipanggil saat user klik "Ya sudah konfirmasi" di VerifyEmailPage.
